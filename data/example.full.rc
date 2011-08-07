@@ -22,8 +22,11 @@ displayed_headers = From,To,Cc,Bcc,Subject
 # ask for subject when compose
 ask_subject = True
 
-# time in secs to display status messages
-notify_timeout = 1  # how long (in seconds) notifications are shown
+# how long (in seconds) notifications are shown
+notify_timeout = 1  
+
+# how long to wait until unknown input key is discarded
+input_timeout = 2
 
 # display statusline?
 show_statusbar = True

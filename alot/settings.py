@@ -35,6 +35,7 @@ DEFAULTS = {
         'authors_maxlength': '30',
         'ask_subject': 'True',
         'notify_timeout': '2',
+        'input_timeout': '1',
         'show_statusbar': 'True',
         'flush_retry_timeout': '5',
         'hooksfile': '~/.alot.py',
@@ -221,6 +222,7 @@ DEFAULTS = {
         '$': 'flush',
         '@': 'refresh',
         'm': 'compose',
+        'gg': 'home',
     },
     'search-maps': {
         '|': 'refineprompt',
@@ -327,8 +329,10 @@ class CustomConfigParser(SafeConfigParser):
             hb = self.get('highcolour-theme', attr + '_bg', fallback='default')
             p.append((attr, nf, nb, m, hf, hb))
             if attr.startswith('tag_') and attr + '_focus' not in names:
-                nb = self.get('normal-theme', 'threadline_focus_bg', fallback='default')
-                hb = self.get('highcolour-theme', 'threadline_focus_bg', fallback='default')
+                nb = self.get('normal-theme', 'threadline_focus_bg',
+                              fallback='default')
+                hb = self.get('highcolour-theme', 'threadline_focus_bg',
+                              fallback='default')
                 p.append((attr + '_focus', nf, nb, m, hf, hb))
         return p
 
