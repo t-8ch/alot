@@ -91,6 +91,7 @@ class SettingsManager(object):
 
         self._accounts = self._parse_accounts(self._config)
         self._accountmap = self._account_table(self._accounts)
+        #logging.debug(self._theme.attributes)
 
     def write_default_config(self, path):
         """write out defaults/config.stub to path"""
@@ -210,17 +211,16 @@ class SettingsManager(object):
             value = fallback
         return value
 
-    def get_theming_attribute(self, mode, name):
+    def get_threadline_structure(self, thread):
+        colours = int(self._config.get('colourmode'))
+        return self._theme.get_threadline_structure(thread, colours)
+
+    def get_theming_attribute(self, path):
         """
         looks up theming attribute
-
-        :param mode: ui-mode (e.g. `search`,`thread`...)
-        :type mode: str
-        :param name: identifier of the atttribute
-        :type name: str
         """
         colours = int(self._config.get('colourmode'))
-        return self._theme.get_attribute(mode, name,  colours)
+        return self._theme.get_attribute([colours] + path)
 
     def get_tagstring_representation(self, tag):
         """
@@ -232,8 +232,8 @@ class SettingsManager(object):
         """
         colours = int(self._config.get('colourmode'))
         # default attributes: normal and focussed
-        default = self._theme.get_attribute('global', 'tag', colours)
-        default_f = self._theme.get_attribute('global', 'tag_focus', colours)
+        default = self._theme.get_attribute([colours, 'global', 'tag'])
+        default_f = self._theme.get_attribute([colours, 'global', 'tag_focus'])
         for sec in self._config['tags'].sections:
             if re.match('^' + sec + '$', tag):
                 fg = self._config['tags'][sec]['fg'] or default.foreground

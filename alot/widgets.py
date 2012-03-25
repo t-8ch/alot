@@ -82,70 +82,62 @@ class ThreadlineWidget(urwid.AttrMap):
         #logging.debug('tid: %s' % self.thread)
         self.tag_widgets = []
         self.display_content = settings.get('display_content_in_threadline')
+        self.structure = None
         self.rebuild()
-        normal = settings.get_theming_attribute('search', 'thread')
-        focussed = settings.get_theming_attribute('search', 'thread_focus')
+        normal = self.structure['spaces']['normal']
+        focussed = self.structure['spaces']['focus']
         urwid.AttrMap.__init__(self, self.columns, normal, focussed)
 
-    def rebuild(self):
-        cols = []
-        if self.thread:
-            newest = self.thread.get_newest_date()
-        else:
+    def _build_part(self, name, struct):
+        part = None
+        width = None
+        if name == 'date':
             newest = None
-        if newest == None:
             datestring = ''
-        else:
-            datestring = settings.represent_datetime(newest)
-        datestring = datestring.rjust(self.pretty_datetime_len)
-        self.date_w = urwid.AttrMap(urwid.Text(datestring),
-                                    self._get_theme('date'))
-        cols.append(('fixed', len(datestring), self.date_w))
+            if self.thread:
+                newest = self.thread.get_newest_date()
+                datestring = settings.represent_datetime(newest)
+                datestring = datestring.rjust(self.pretty_datetime_len)
+            part = AttrFlipWidget(urwid.Text(datestring), struct['date'])
 
-        if self.thread:
-            mailcountstring = "(%d)" % self.thread.get_total_messages()
-        else:
-            mailcountstring = "(?)"
-        self.mailcount_w = urwid.AttrMap(urwid.Text(mailcountstring),
-                                         self._get_theme('mailcount'))
-        cols.append(('fixed', len(mailcountstring), self.mailcount_w))
+        elif name == 'mailcount':
+            if self.thread:
+                mailcountstring = "(%d)" % self.thread.get_total_messages()
+            else:
+                mailcountstring = "(?)"
+            mailcount_w = AttrFlipWidget(urwid.Text(mailcountstring),
+                                             struct['mailcount'])
+            part = mailcount_w
+        elif name == 'authors':
+            if self.thread:
+                authors = self.thread.get_authors_string() or '(None)'
+            else:
+                authors = '(None)'
+            maxlength = settings.get('authors_maxlength')  #TODO
+            authorsstring = shorten_author_string(authors, maxlength)
+            authors_w = AttrFlipWidget(urwid.Text(authorsstring),
+                                           struct['authors'])
+            #authors_w = AttrFlipWidget(urwid.Columns([
+            #   ('flow', urwid.Text('foo')),
+            #]), struct['authors'])
+            part = authors_w
 
-        if self.thread:
-            self.tag_widgets = [TagWidget(t)
-                                for t in self.thread.get_tags()]
-        else:
-            self.tag_widgets = []
-        self.tag_widgets.sort(tag_cmp,
-                              lambda tag_widget: tag_widget.translated)
-        for tag_widget in self.tag_widgets:
-            if not tag_widget.hidden:
-                cols.append(('fixed', tag_widget.width(), tag_widget))
+        elif name == 'subject':
+            if self.thread:
+                subjectstring = self.thread.get_subject() or ''
+            else:
+                subjectstring = ''
+            # sanitize subject string:
+            subjectstring = subjectstring.replace('\n', ' ')
+            subjectstring = subjectstring.replace('\r', '')
+            subjectstring = subjectstring.strip()
 
-        if self.thread:
-            authors = self.thread.get_authors_string() or '(None)'
-        else:
-            authors = '(None)'
-        maxlength = settings.get('authors_maxlength')
-        authorsstring = shorten_author_string(authors, maxlength)
-        self.authors_w = urwid.AttrMap(urwid.Text(authorsstring),
-                                       self._get_theme('authors'))
-        cols.append(('fixed', len(authorsstring), self.authors_w))
+            subject_w = AttrFlipWidget(urwid.Text(subjectstring, wrap='clip'),
+                                           struct['subject'])
+            if subjectstring:
+                part = subject_w
 
-        if self.thread:
-            subjectstring = self.thread.get_subject() or ''
-        else:
-            subjectstring = ''
-        # sanitize subject string:
-        subjectstring = subjectstring.replace('\n', ' ')
-        subjectstring = subjectstring.replace('\r', '')
-        subjectstring = subjectstring.strip()
-
-        self.subject_w = urwid.AttrMap(urwid.Text(subjectstring, wrap='clip'),
-                                       self._get_theme('subject'))
-        if subjectstring:
-            cols.append(('weight', 2, self.subject_w))
-
-        if self.display_content:
+        elif name == 'content':
             if self.thread:
                 msgs = self.thread.get_messages().keys()
             else:
@@ -154,38 +146,59 @@ class ThreadlineWidget(urwid.AttrMap):
             msgs.sort(key=lambda msg: msg.get_date(), reverse=True)
             lastcontent = ' '.join([m.get_text_content() for m in msgs])
             contentstring = lastcontent.replace('\n', ' ').strip()
-            self.content_w = urwid.AttrMap(urwid.Text(
+            content_w = AttrFlipWidget(urwid.Text(
                                                    contentstring,
                                                    wrap='clip'),
-                                                   self._get_theme('content'))
-            cols.append(self.content_w)
+                                                   struct['content'])
+            part = content_w
+        elif name == 'tags':
+            if self.thread:
+                tag_widgets = [TagWidget(t)
+                                    for t in self.thread.get_tags()]
+                tag_widgets.sort(tag_cmp,
+                                  lambda tag_widget: tag_widget.translated)
+            else:
+                tag_widgets = []
+            cols = []
+            length = -1
+            for tag_widget in tag_widgets:
+                if not tag_widget.hidden:
+                    wrapped_tagwidget = AttrFlipWidget(tag_widget, struct['tags'])
+                    tag_width = tag_widget.width()
+                    cols.append((tag_width, wrapped_tagwidget))
+                    length += tag_width +1
+            if cols:
+                part = urwid.Columns(cols, dividechars=1)
+                width = length
+        return width, part
 
-        self.columns = urwid.Columns(cols, dividechars=1)
+    def rebuild(self):
+        self.widgets = []
+        columns = []
+        self.structure = settings.get_threadline_structure(self.thread)
+        for partname in self.structure['order']:
+            logging.debug(partname)
+            forced_width, part = self._build_part(partname, self.structure)
+            if isinstance(part, urwid.Columns):
+                for w in part.widget_list:
+                    self.widgets.append(w)
+            else:
+                self.widgets.append(part)
+            if forced_width:
+                width_tuple = (forced_width,)
+            else:
+                width_tuple = self.structure[partname]['widthtuple']
+            columnentry = width_tuple + (part,)
+            logging.debug(columnentry)
+            columns.append(columnentry)
+        logging.debug(columns)
+        self.columns = urwid.Columns(columns, dividechars=1)
+
         self.original_widget = self.columns
 
     def render(self, size, focus=False):
-        if focus:
-            self.date_w.set_attr_map({None: self._get_theme('date', focus)})
-            self.mailcount_w.set_attr_map({None:
-                                          self._get_theme('mailcount', focus)})
-            for tw in self.tag_widgets:
-                tw.set_focussed()
-            self.authors_w.set_attr_map({None: self._get_theme('authors',
-                                                               focus)})
-            self.subject_w.set_attr_map({None: self._get_theme('subject',
-                                                               focus)})
-            if self.display_content:
-                self.content_w.set_attr_map(
-                    {None: self._get_theme('content', focus=True)})
-        else:
-            self.date_w.set_attr_map({None: self._get_theme('date')})
-            self.mailcount_w.set_attr_map({None: self._get_theme('mailcount')})
-            for tw in self.tag_widgets:
-                tw.set_unfocussed()
-            self.authors_w.set_attr_map({None: self._get_theme('authors')})
-            self.subject_w.set_attr_map({None: self._get_theme('subject')})
-            if self.display_content:
-                self.content_w.set_attr_map({None: self._get_theme('content')})
+        for w in self.widgets:
+            w.set_map('focus' if focus else 'normal')
         return urwid.AttrMap.render(self, size, focus)
 
     def selectable(self):
@@ -198,10 +211,24 @@ class ThreadlineWidget(urwid.AttrMap):
         return self.thread
 
     def _get_theme(self, component, focus=False):
-        attr_key = 'thread_{0}'.format(component)
+        path = ['search', 'threadline', component]
         if focus:
-            attr_key += '_focus'
-        return settings.get_theming_attribute('search', attr_key)
+            path.append('focus')
+        else:
+            path.append('normal')
+        return settings.get_theming_attribute(path)
+
+class AttrFlipWidget(urwid.AttrMap):
+    """
+    An AttrMap that can remember attributes to set
+    """
+    def __init__(self, w, maps, init_map='normal'):
+        self.maps = maps
+        urwid.AttrMap.__init__(self, w, maps[init_map])
+
+    def set_map(self, attrstring):
+        self.set_attr_map({None:self.maps[attrstring]})
+
 
 
 class BufferlineWidget(urwid.Text):

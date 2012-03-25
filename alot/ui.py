@@ -84,7 +84,7 @@ class UI(object):
 
         colourmode = int(settings.get('colourmode'))
         logging.info('setup gui in %d colours' % colourmode)
-        global_att = settings.get_theming_attribute('global', 'body')
+        global_att = settings.get_theming_attribute(['global', 'body'])
         self.mainframe = urwid.Frame(urwid.SolidFill())
         self.mainframe_themed = urwid.AttrMap(self.mainframe, global_att)
         self.inputwrap = InputWrap(self, self.mainframe_themed)
@@ -167,7 +167,7 @@ class UI(object):
                 ('fixed', len(prefix), leftpart),
                 ('weight', 1, editpart),
             ])
-        att = settings.get_theming_attribute('global', 'prompt')
+        att = settings.get_theming_attribute(['global', 'prompt'])
         both = urwid.AttrMap(both, att)
 
         # put promptwidget as overlay on main widget
@@ -353,7 +353,7 @@ class UI(object):
         """
         def build_line(msg, prio):
             cols = urwid.Columns([urwid.Text(msg)])
-            att = settings.get_theming_attribute('global', 'notify_' + prio)
+            att = settings.get_theming_attribute(['global', 'notify_' + prio])
             return urwid.AttrMap(cols, att)
         msgs = [build_line(message, priority)]
 
@@ -427,7 +427,7 @@ class UI(object):
         columns = urwid.Columns([
             footerleft,
             ('fixed', len(righttxt), footerright)])
-        footer_att = settings.get_theming_attribute('global', 'footer')
+        footer_att = settings.get_theming_attribute(['global', 'footer'])
         return urwid.AttrMap(columns, footer_att)
 
     def apply_command(self, cmd):

@@ -255,8 +255,9 @@
         fg = '#6d6'
         bg_focus = '#68a'
         fg_focus = 'white'
-        order = date,mailcount,tags,authors,subject
+        order = date,mailcount,authors,subject,tags
         [[[[authors]]]]
+            width_fixed = 30
             bg = 'default'
             fg = '#6d6'
             bg_focus = '#68a'
@@ -276,6 +277,7 @@
             bg_focus = '#68a'
             fg_focus = 'g89'
         [[[[subject]]]]
+            width_fixed = 30
             bg = 'default'
             fg = 'g58'
             bg_focus = '#68a'

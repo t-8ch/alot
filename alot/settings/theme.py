@@ -3,6 +3,7 @@ from urwid import AttrSpec, AttrSpecError
 
 from utils import read_config
 from errors import ConfigError
+from configobj import ConfigObj
 
 DEFAULTSPATH = os.path.join(os.path.dirname(__file__), '..', 'defaults')
 
@@ -42,13 +43,37 @@ class Theme(object):
                 if mode == 'search':
                     for tline in c[sec][mode].sections:
                         attributes[colours][mode][tline] = {}
-                        space = self._read_attribute(c, [mode, tline], colours)
-                        attributes[colours][mode][tline]['spaces'] = space
-                        for themable in c[sec][mode][tline].sections:
+                        order = c[sec][mode][tline]['order']
+                        attributes[colours][mode][tline]['order'] = order
+
+                        sf = self._read_attribute(c, [mode, tline], colours,
+                                                  suffix='_focus')
+                        sn = self._read_attribute(c, [mode, tline], colours)
+                        spaces = {'normal': sn, 'focus': sf}
+                        attributes[colours][mode][tline]['spaces'] = spaces
+
+                        config_sec = c[sec][mode][tline]
+                        internal_sec = attributes[colours][mode][tline]
+                        for themable in config_sec.sections:
+                            internal_sec[themable] = {}
                             att = self._read_attribute(c,
                                                        [mode, tline, themable],
                                                        colours)
-                            attributes[colours][mode][tline][themable] = att
+                            internal_sec[themable]['normal'] = att
+                            att = self._read_attribute(c,
+                                                       [mode, tline, themable],
+                                                       colours, '_focus')
+                            internal_sec[themable]['focus'] = att
+                            fixed = config_sec[themable]['width_fixed']
+                            weight = config_sec[themable]['width_weight']
+                            if fixed != None:
+                                widthtuple = (fixed,)
+                            elif weight != None:
+                                widthtuple = ()
+                            else:
+                                widthtuple = ('pack',)
+                            internal_sec[themable]['widthtuple'] = widthtuple
+
                 else:
                     for themable in c[sec][mode].sections:
                         att = self._read_attribute(c, [mode, themable],
@@ -56,23 +81,29 @@ class Theme(object):
                         attributes[colours][mode][themable] = att
         return attributes
 
-    def _read_attribute(self, cfg, path, colours):
+    def _read_attribute(self, cfg, path, colours, suffix=''):
         bg = 'default'
         if colours != 1:
-            bg = self._get_leaf_value(cfg, [str(colours)] + path + ['bg'])
+            lpath = [str(colours)] + path + ['bg' + suffix]
+            bg = self._get_leaf_value(cfg, lpath)
             if bg == None:
                 if colours == 16:
-                    bg = self._get_leaf_value(cfg, ['1'] + path + ['bg'])
+                    lpath = ['1'] + path + ['bg' + suffix]
+                    bg = self._get_leaf_value(cfg, lpath)
                 else:
-                    bg = self._get_leaf_value(cfg, ['16'] + path + ['bg'])
+                    lpath =  ['16'] + path + ['bg' + suffix]
+                    bg = self._get_leaf_value(cfg, lpath)
         bg = bg or 'default'
 
-        fg = self._get_leaf_value(cfg, [str(colours)] + path + ['fg'])
+        lpath = [str(colours)] + path + ['fg' + suffix]
+        fg = self._get_leaf_value(cfg, lpath)
         if fg == None:
             if colours == 16:
-                fg = self._get_leaf_value(cfg, ['1'] + path + ['fg'])
+                lpath = ['1'] + path + ['fg' + suffix]
+                fg = self._get_leaf_value(cfg, lpath)
             else:
-                fg = self._get_leaf_value(cfg, ['16'] + path + ['fg'])
+                lpath =  ['16'] + path + ['fg' + suffix]
+                fg = self._get_leaf_value(cfg, lpath)
         fg = fg or 'default'
 
         try:
@@ -83,22 +114,27 @@ class Theme(object):
 
     def _get_leaf_value(self, cfg, path):
         if len(path) == 1:
-            if path[0] not in cfg.scalars:
-                return None
+            if isinstance(cfg, ConfigObj):
+                if path[0] not in cfg.scalars:
+                    return None
+                else:
+                    return cfg[path[0]]
             else:
-                return cfg[path[0]]
+                if path[0] not in cfg:
+                    return None
+                else:
+                    return cfg[path[0]]
         else:
-            return self._get_leaf_value(cfg[path[0]], path[1:])
+            scfg = cfg[path[0]]
+            sp = path[1:]
+            return self._get_leaf_value(scfg, sp)
 
-    def get_attribute(self, mode, name, colourmode):
+    def get_threadline_structure(self, thread, colourmode):
+        return self.attributes[colourmode]['search']['threadline']
+
+    def get_attribute(self, path):
         """
         returns requested attribute
-
-        :param mode: ui-mode (e.g. `search`,`thread`...)
-        :type mode: str
-        :param name: identifier of the atttribute
-        :type name: str
-        :param colourmode: colour mode; in [1, 16, 256]
-        :type colourmode: int
         """
-        return self.attributes[colourmode][mode][name]
+        return self._get_leaf_value(self.attributes, path)
+
