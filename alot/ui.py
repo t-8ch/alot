@@ -7,6 +7,7 @@ from settings import settings
 from buffers import BufferlistBuffer
 import commands
 from commands import commandfactory
+from commands import split_commandline
 from alot.commands import CommandParseError
 import widgets
 
@@ -48,13 +49,16 @@ class InputWrap(urwid.WidgetWrap):
             mode = 'global'
         cmdline = settings.get_keybinding(mode, key)
         if cmdline:
-            try:
-                cmd = commandfactory(cmdline, mode)
-                if self.allowed_command(cmd):
-                    self.ui.apply_command(cmd)
-                    return None
-            except CommandParseError, e:
-                self.ui.notify(e.message, priority='error')
+            # split commandline if necessary
+            for cmdstring in split_commandline(cmdline):
+                # translate cmdstring into :class:`Command` and apply
+                try:
+                    cmd = commandfactory(cmdstring, mode)
+                    if self.allowed_command(cmd):
+                        self.ui.apply_command(cmd)
+                        return None
+                except CommandParseError, e:
+                    self.ui.notify(e.message, priority='error')
         return self._w.keypress(size, key)
 
 

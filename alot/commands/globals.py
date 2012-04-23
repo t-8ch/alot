@@ -14,6 +14,7 @@ from alot.commands import Command, registerCommand
 from alot.completion import CommandLineCompleter
 from alot.commands import CommandParseError
 from alot.commands import commandfactory
+from alot.commands import split_commandline
 from alot import buffers
 from alot import widgets
 from alot import helper
@@ -99,7 +100,6 @@ class PromptCommand(Command):
                                   completer=cmpl,
                                   history=ui.commandprompthistory,
                                   )
-        logging.debug('CMDLINE: %s' % cmdline)
 
         # interpret and apply commandline
         if cmdline:
@@ -107,11 +107,14 @@ class PromptCommand(Command):
             ui.commandprompthistory.append(cmdline)
 
             mode = ui.current_buffer.modename
-            try:
-                cmd = commandfactory(cmdline, mode)
-                ui.apply_command(cmd)
-            except CommandParseError, e:
-                ui.notify(e.message, priority='error')
+            # split commandline if necessary
+            for cmdstring in split_commandline(cmdline):
+                # translate cmdstring into :class:`Command` and apply
+                try:
+                    cmd = commandfactory(cmdstring, mode)
+                    ui.apply_command(cmd)
+                except CommandParseError, e:
+                    ui.notify(e.message, priority='error')
 
 
 @registerCommand(MODE, 'refresh')
