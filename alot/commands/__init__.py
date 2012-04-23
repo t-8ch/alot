@@ -142,6 +142,21 @@ class registerCommand(object):
         return klass
 
 
+def split_commandline(s, comments=False, posix=True):
+    """
+    splits semi-colon separated commandlines
+    """
+    # encode s to utf-8 for shlex
+    if isinstance(s, unicode):
+        s = s.encode('utf-8')
+    lex = shlex.shlex(s, posix=posix)
+    lex.whitespace_split = True
+    lex.whitespace = ';'
+    if not comments:
+        lex.commenters = ''
+    return list(lex)
+
+
 def commandfactory(cmdline, mode='global'):
     """
     parses `cmdline` and constructs a :class:`Command`.
