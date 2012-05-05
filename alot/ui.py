@@ -51,6 +51,10 @@ class InputWrap(urwid.WidgetWrap):
         if cmdline:
             # split commandline if necessary
             for cmdstring in split_commandline(cmdline):
+                # allow to shellescape without a space after '!'
+                if cmdstring.startswith('!'):
+                    cmdstring = 'shellescape \'%s\'' % cmdstring[1:]
+
                 # translate cmdstring into :class:`Command` and apply
                 try:
                     cmd = commandfactory(cmdstring, mode)

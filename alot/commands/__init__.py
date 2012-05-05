@@ -178,9 +178,6 @@ def commandfactory(cmdline, mode='global'):
     if not cmdline:
         return None
     logging.debug('mode:%s got commandline "%s"' % (mode, cmdline))
-    # allow to shellescape without a space after '!'
-    if cmdline.startswith('!'):
-        cmdline = 'shellescape \'%s\'' % cmdline[1:]
     cmdline = re.sub(r'"(.*)"', r'"\\"\1\\""', cmdline)
     try:
         args = shlex.split(cmdline.encode('utf-8'))

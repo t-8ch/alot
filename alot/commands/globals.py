@@ -106,7 +106,10 @@ class PromptCommand(Command):
             # save into prompt history
             ui.commandprompthistory.append(cmdline)
 
-            mode = ui.current_buffer.modename
+            # allow to shellescape without a space after '!'
+            if cmdline.startswith('!'):
+                cmdline = 'shellescape \'%s\'' % cmdline[1:]
+
             # split commandline if necessary
             for cmdstring in split_commandline(cmdline):
                 # translate cmdstring into :class:`Command` and apply
