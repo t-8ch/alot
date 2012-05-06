@@ -249,7 +249,7 @@ class AccountCompleter(StringlistCompleter):
         StringlistCompleter.__init__(self, resultlist)
 
 
-class CommandCompleter(Completer):
+class CommandNameCompleter(Completer):
     """completes commands"""
 
     def __init__(self, mode):
@@ -286,7 +286,7 @@ class CommandLineCompleter(Completer):
         self.dbman = dbman
         self.mode = mode
         self.currentbuffer = currentbuffer
-        self._commandcompleter = CommandCompleter(mode)
+        self._commandnamecompleter = CommandNameCompleter(mode)
         self._querycompleter = QueryCompleter(dbman)
         self._tagcompleter = TagCompleter(dbman)
         abooks = settings.get_addressbooks()
@@ -298,7 +298,7 @@ class CommandLineCompleter(Completer):
 
         res = []
         if pos <= len(words[0]):  # we complete commands
-            for cmd, cpos in self._commandcompleter.complete(line, pos):
+            for cmd, cpos in self._commandnamecompleter.complete(line, pos):
                 newtext = ('%s %s' % (cmd, ' '.join(words[1:])))
                 res.append((newtext, cpos + 1))
         else:
@@ -333,7 +333,7 @@ class CommandLineCompleter(Completer):
             elif cmd == 'search':
                 res = self._querycompleter.complete(params, localpos)
             elif cmd == 'help':
-                res = self._commandcompleter.complete(params, localpos)
+                res = self._commandnamecompleter.complete(params, localpos)
             elif cmd in ['compose']:
                 res = self._contactscompleter.complete(params, localpos)
             # search
