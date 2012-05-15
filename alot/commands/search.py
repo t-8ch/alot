@@ -174,14 +174,19 @@ class TagCommand(Command):
                 threadline_widget.rebuild()
 
         tags = filter(lambda x: x, self.tagsstring.split(','))
+
+        # call refresh as callback after db writeout
+        # or directly in case flush is delayed
+        refresh_if_flush = refresh if self.flush else None
+
         try:
             if self.action == 'add':
-                thread.add_tags(tags, afterwards=refresh)
+                thread.add_tags(tags, afterwards=refresh_if_flush)
             if self.action == 'set':
-                thread.add_tags(tags, afterwards=refresh,
+                thread.add_tags(tags, afterwards=refresh_if_flush,
                            remove_rest=True)
             elif self.action == 'remove':
-                thread.remove_tags(tags, afterwards=refresh)
+                thread.remove_tags(tags, afterwards=refresh_if_flush)
             elif self.action == 'toggle':
                 to_remove = []
                 to_add = []
@@ -191,11 +196,15 @@ class TagCommand(Command):
                     else:
                         to_add.append(t)
                 thread.remove_tags(to_remove)
-                thread.add_tags(to_add, afterwards=refresh)
+                thread.add_tags(to_add, afterwards=refresh_if_flush)
         except DatabaseROError:
             ui.notify('index in read-only mode', priority='error')
             return
 
         # flush index
-        if self.flush:
+        if not self.flush:
+            # refresh or remove threadline
+            refresh()
+        else:
+            # flush calls refresh after writeout
             ui.apply_command(commands.globals.FlushCommand())
