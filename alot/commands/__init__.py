@@ -142,7 +142,7 @@ class registerCommand(object):
         return klass
 
 
-def split_commandline(s, comments=False, posix=True):
+def split_commandline(s, comments=False, posix=False):
     """
     splits semi-colon separated commandlines
     """
