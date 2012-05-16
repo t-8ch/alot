@@ -44,9 +44,7 @@ class InputWrap(urwid.WidgetWrap):
 
     def keypress(self, size, key):
         """overwrites `urwid.WidgetWrap.keypress`"""
-        mode = self.ui.mode
-        if self.select_cancel_only:
-            mode = 'global'
+        mode = 'global' if self.select_cancel_only else self.ui.mode
         cmdline = settings.get_keybinding(mode, key)
         if cmdline:
             # split commandline if necessary
@@ -55,6 +53,8 @@ class InputWrap(urwid.WidgetWrap):
                 if cmdstring.startswith('!'):
                     cmdstring = 'shellescape \'%s\'' % cmdstring[1:]
 
+                # get current ui mode
+                mode = 'global' if self.select_cancel_only else self.ui.mode
                 # translate cmdstring into :class:`Command` and apply
                 try:
                     cmd = commandfactory(cmdstring, mode)

@@ -114,7 +114,7 @@ class PromptCommand(Command):
             for cmdstring in split_commandline(cmdline):
                 # translate cmdstring into :class:`Command` and apply
                 try:
-                    cmd = commandfactory(cmdstring, mode)
+                    cmd = commandfactory(cmdstring, ui.mode)
                     ui.apply_command(cmd)
                 except CommandParseError, e:
                     ui.notify(e.message, priority='error')
