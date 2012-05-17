@@ -6,6 +6,7 @@ import shlex
 import re
 import subprocess
 from email.Utils import parseaddr
+import mailcap
 
 from alot.commands import Command, registerCommand
 from alot.commands.globals import ExternalCommand
@@ -23,6 +24,7 @@ from alot.db.attachment import Attachment
 
 from alot.db.errors import DatabaseROError
 from alot.settings import settings
+from alot.helper import parse_mailcap_nametemplate
 
 MODE = 'thread'
 
@@ -108,7 +110,7 @@ class ReplyCommand(Command):
             quotestring = 'Quoting %s (%s)\n' % (name, timestamp)
         mailcontent = quotestring
         for line in self.message.accumulate_body().splitlines():
-            mailcontent += '>' + line + '\n'
+            mailcontent += '> ' + line + '\n'
 
         envelope = Envelope(bodytext=mailcontent)
 
@@ -219,7 +221,7 @@ class ForwardCommand(Command):
 
         else:  # attach original mode
             # attach original msg
-            mail.set_default_type('message/rfc822')
+            mail.set_type('message/rfc822')
             mail['Content-Disposition'] = 'attachment'
             envelope.attach(Attachment(mail))
 
@@ -510,15 +512,16 @@ class RemoveCommand(Command):
 
     @inlineCallbacks
     def apply(self, ui):
+        threadbuffer = ui.current_buffer
         # get messages and notification strings
         if self.all:
-            thread = ui.current_buffer.get_selected_thread()
+            thread = threadbuffer.get_selected_thread()
             tid = thread.get_thread_id()
             messages = thread.get_messages().keys()
             confirm_msg = 'remove all messages in thread?'
             ok_msg = 'removed all messages in thread: %s' % tid
         else:
-            msg = ui.current_buffer.get_selected_message()
+            msg = threadbuffer.get_selected_message()
             messages = [msg]
             confirm_msg = 'remove selected message?'
             ok_msg = 'removed message: %s' % msg.get_message_id()
@@ -529,8 +532,8 @@ class RemoveCommand(Command):
 
         # notify callback
         def callback():
+            threadbuffer.rebuild()
             ui.notify(ok_msg)
-            ui.apply_command(RefreshCommand())
 
         # remove messages
         for m in messages:
@@ -661,19 +664,33 @@ class OpenAttachmentCommand(Command):
         logging.info('open attachment')
         mimetype = self.attachment.get_content_type()
 
-        handler = settings.get_mime_handler(mimetype)
+        handler, entry = settings.mailcap_find_match(mimetype)
         if handler:
-            path = self.attachment.save(tempfile.gettempdir())
-            handler = re.sub('\'?%s\'?', '{}', handler)
+            nametemplate = entry.get('nametemplate', '%s')
+            prefix, suffix = parse_mailcap_nametemplate(nametemplate)
+            tmpfile = tempfile.NamedTemporaryFile(delete=False,
+                                                  prefix=prefix,
+                                                  suffix=suffix)
+
+            self.attachment.write(tmpfile)
+            tmpfile.close()
+
+            # read parameter, create handler command
+            part = self.attachment.get_mime_representation()
+            parms = tuple(map('='.join, part.get_params()))
+
+            # create and call external command
+            handler = mailcap.subst(entry['view'], mimetype,
+                                filename=tmpfile.name, plist=parms)
 
             # 'needsterminal' makes handler overtake the terminal
-            nt = settings.get_mime_handler(mimetype, key='needsterminal')
+            nt = entry.get('needsterminal', None)
             overtakes = (nt is None)
 
             def afterwards():
-                os.remove(path)
+                os.remove(tmpfile.name)
 
-            ui.apply_command(ExternalCommand(handler, path=path,
+            ui.apply_command(ExternalCommand(handler, path=tmpfile.name,
                                              on_success=afterwards,
                                              thread=overtakes))
         else:

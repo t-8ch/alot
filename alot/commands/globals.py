@@ -17,12 +17,14 @@ from alot.commands import commandfactory
 from alot import buffers
 from alot import widgets
 from alot import helper
+from alot import crypto
 from alot.db.errors import DatabaseLockedError
 from alot.completion import ContactsCompleter
 from alot.completion import AccountCompleter
 from alot.db.envelope import Envelope
 from alot import commands
 from alot.settings import settings
+from alot.errors import GPGProblem
 
 MODE = 'global'
 
@@ -92,7 +94,7 @@ class PromptCommand(Command):
     @inlineCallbacks
     def apply(self, ui):
         logging.info('open command shell')
-        mode = ui.current_buffer.modename
+        mode = ui.mode or 'global'
         cmpl = CommandLineCompleter(ui.dbman, mode, ui.current_buffer)
         cmdline = yield ui.prompt('',
                                   text=self.startwith,
@@ -106,7 +108,6 @@ class PromptCommand(Command):
             # save into prompt history
             ui.commandprompthistory.append(cmdline)
 
-            mode = ui.current_buffer.modename
             try:
                 cmd = commandfactory(cmdline, mode)
                 ui.apply_command(cmd)
@@ -210,16 +211,13 @@ class EditCommand(ExternalCommand):
         """
         :param path: path to the file to be edited
         :type path: str
-        :param spawn: run command in a new terminal
+        :param spawn: force running edtor in a new terminal
         :type spawn: bool
         :param thread: run asynchronously, don't block alot
         :type thread: bool
         """
         self.path = path
-        if spawn != None:
-            self.spawn = spawn
-        else:
-            self.spawn = settings.get('editor_spawn')
+        self.spawn = settings.get('editor_spawn') or spawn
         if thread != None:
             self.thread = thread
         else:
@@ -362,6 +360,7 @@ class FlushCommand(Command):
             ui.notify('index locked, will try again in %d secs' % timeout)
             ui.update()
             return
+        logging.debug('flush complete')
 
 
 #TODO: choices
@@ -383,8 +382,14 @@ class HelpCommand(Command):
     def apply(self, ui):
         logging.debug('HELP')
         if self.commandname == 'bindings':
+            text_att = settings.get_theming_attribute('help', 'text')
+            title_att = settings.get_theming_attribute('help', 'title')
+            section_att = settings.get_theming_attribute('help', 'section')
             # get mappings
-            modemaps = dict(settings._bindings[ui.mode].items())
+            if ui.mode in settings._bindings:
+                modemaps = dict(settings._bindings[ui.mode].items())
+            else:
+                modemaps = {}
             is_scalar = lambda (k, v): k in settings._bindings.scalars
             globalmaps = dict(filter(is_scalar, settings._bindings.items()))
 
@@ -395,29 +400,28 @@ class HelpCommand(Command):
 
             linewidgets = []
             # mode specific maps
-            linewidgets.append(urwid.Text(('help_section',
-                                '\n%s-mode specific maps' % ui.mode)))
-            for (k, v) in modemaps.items():
-                line = urwid.Columns([('fixed', keycolumnwidth, urwid.Text(k)),
-                                      urwid.Text(v)])
-                linewidgets.append(line)
+            if modemaps:
+                linewidgets.append(urwid.Text((section_att,
+                                    '\n%s-mode specific maps' % ui.mode)))
+                for (k, v) in modemaps.items():
+                    line = urwid.Columns([('fixed', keycolumnwidth,
+                                           urwid.Text((text_att, k))),
+                                          urwid.Text((text_att, v))])
+                    linewidgets.append(line)
 
             # global maps
-            linewidgets.append(urwid.Text(('help_section',
-                                           '\nglobal maps')))
+            linewidgets.append(urwid.Text((section_att, '\nglobal maps')))
             for (k, v) in globalmaps.items():
                 if k not in modemaps:
                     line = urwid.Columns(
-                        [('fixed', keycolumnwidth, urwid.Text(k)),
-                         urwid.Text(v)])
+                        [('fixed', keycolumnwidth, urwid.Text((text_att, k))),
+                         urwid.Text((text_att, v))])
                     linewidgets.append(line)
 
             body = urwid.ListBox(linewidgets)
             ckey = 'cancel'
             titletext = 'Bindings Help (%s cancels)' % ckey
 
-            text_att = settings.get_theming_attribute('help', 'text')
-            title_att = settings.get_theming_attribute('help', 'title')
             box = widgets.DialogBox(body, titletext,
                                     bodyattr=text_att,
                                     titleattr=title_att)
@@ -594,12 +598,16 @@ class ComposeCommand(Command):
                                         select='yes', cancel='no')) == 'no':
                             return
 
+        # Figure out whether we should GPG sign messages by default
+        # and look up key if so
+        sender = self.envelope.get('From')
+        name, addr = email.Utils.parseaddr(sender)
+        account = settings.get_account_by_address(addr)
+        self.envelope.sign = account.sign_by_default
+        self.envelope.sign_key = account.gpg_key
+
         # get missing To header
         if 'To' not in self.envelope.headers:
-            sender = self.envelope.get('From')
-            name, addr = email.Utils.parseaddr(sender)
-            account = settings.get_account_by_address(addr)
-
             allbooks = not settings.get('complete_matching_abook_only')
             logging.debug(allbooks)
             if account is not None:

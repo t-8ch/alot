@@ -27,10 +27,10 @@ theme = string(default=None)
 display_content_in_threadline = boolean(default=False)
 
 # headers that get displayed by default
-displayed_headers = string_list(default=list(From,To,Cc,Bcc,Subject))
+displayed_headers = force_list(default=list(From,To,Cc,Bcc,Subject))
 
 # headers that are hidden in envelope buffers by default
-envelope_headers_blacklist = string_list(default=list(In-Reply-To,References))
+envelope_headers_blacklist = force_list(default=list(In-Reply-To,References))
 
 # Replace own email addresses with "me" in author lists
 # Uses own addresses and aliases in all configured accounts.
@@ -51,6 +51,7 @@ editor_cmd = string(default=None)
 editor_writes_encoding = string(default='UTF-8')
 
 # use terminal_command to spawn a new terminal for the editor?
+# equivalent to always providing the `--spawn` parameter to compose/edit commands
 editor_spawn = boolean(default=False)
 
 # call editor in separate thread.
@@ -61,10 +62,10 @@ editor_in_thread = boolean(default=False)
 # Which header fields should be editable in your editor
 # used are those that match the whitelist and don't match the blacklist.
 # in both cases '*' may be used to indicate all fields.
-edit_headers_whitelist = string_list(default=list(*,))
+edit_headers_whitelist = force_list(default=list(*,))
 
 # see :ref:`edit_headers_whitelist <edit-headers-whitelist>`
-edit_headers_blacklist = string_list(default=list(Content-Type,MIME-Version,References,In-Reply-To))
+edit_headers_blacklist = force_list(default=list(Content-Type,MIME-Version,References,In-Reply-To))
 
 # timeout in seconds after a failed attempt to writeout the database is repeated
 flush_retry_timeout = integer(default=5)
@@ -145,20 +146,28 @@ prompt_suffix = string(default=':')
         realname = string
 
         # used to clear your addresses/ match account when formatting replies
-        aliases = string_list(default=list())
+        aliases = force_list(default=list())
 
         # sendmail command. This is the shell command used to send out mails via the sendmail protocol
-        sendmail_command = string(default='sendmail')
+        sendmail_command = string(default='sendmail -t')
 
-        # where to store outgoing mails, e.g. `maildir:///home/you/mail//Sent`
+        # where to store outgoing mails, e.g. `maildir:///home/you/mail/Sent`.
         # You can use mbox, maildir, mh, babyl and mmdf in the protocol part of the URL.
+        #
+        # .. note:: If you want to add outgoing mails automatically to the notmuch index
+        #           you must use maildir in a path within your notmuch database path.
         sent_box = mail_container(default=None)
 
-        # where to store draft mails, see :ref:`sent_box <sent-box>` for the format
+        # where to store draft mails, e.g. `maildir:///home/you/mail/Drafts`.
+        # You can use mbox, maildir, mh, babyl and mmdf in the protocol part of the URL.
+        #
+        # .. note:: You will most likely want drafts indexed by notmuch to be able to
+        #           later access them within alot. This currently only works for
+        #           maildir containers in a path below your notmuch database path.
         draft_box = mail_container(default=None)
 
         # list of tags to automatically add to outgoing messages
-        sent_tags = string_list(default=list('sent'))
+        sent_tags = force_list(default=list('sent'))
 
         # path to signature file that gets attached to all outgoing mails from this account, optionally
         # renamed to ref:`signature_filename <signature-filename>`.
@@ -172,6 +181,12 @@ prompt_suffix = string(default=':')
         # :ref:`signature_as_attachment <signature-as-attachment>` is set to True
         signature_filename = string(default=None)
 
+        # Outgoing messages will be GPG signed by default if this is set to True.
+        sign_by_default = boolean(default=False)
+
+        # The GPG key ID you want to use with this account. If unset, alot will
+        # use your default key.
+        gpg_key = gpg_key_hint(default=None)
 
         # address book for this account
         [[[abook]]]

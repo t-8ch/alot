@@ -30,9 +30,11 @@ class Attachment(object):
         If the content-disposition header contains no file name,
         this returns `None`
         """
-        extracted_name = decode_header(self.part.get_filename())
-        if extracted_name:
-            return os.path.basename(extracted_name)
+        fname = self.part.get_filename()
+        if fname:
+            extracted_name = decode_header(fname)
+            if extracted_name:
+                return os.path.basename(extracted_name)
         return None
 
     def get_content_type(self):
@@ -62,9 +64,13 @@ class Attachment(object):
                 FILE = tempfile.NamedTemporaryFile(delete=False, dir=path)
         else:
             FILE = open(path, "w")  # this throws IOErrors for invalid path
-        FILE.write(self.get_data())
+        self.write(FILE)
         FILE.close()
         return FILE.name
+
+    def write(self, fhandle):
+        """writes content to a given filehandle"""
+        fhandle.write(self.get_data())
 
     def get_data(self):
         """return data blob from wrapped file"""

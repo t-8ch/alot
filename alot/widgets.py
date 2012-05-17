@@ -3,7 +3,6 @@ import logging
 
 from settings import settings
 from alot.helper import shorten_author_string
-from alot.helper import pretty_datetime
 from alot.helper import tag_cmp
 from alot.helper import string_decode
 import alot.db.message as message
@@ -97,11 +96,7 @@ class ThreadlineWidget(urwid.AttrMap):
         if newest == None:
             datestring = ''
         else:
-            formatstring = settings.get('timestamp_format')
-            if formatstring is None:
-                datestring = pretty_datetime(newest)
-            else:
-                datestring = newest.strftime(formatstring)
+            datestring = settings.represent_datetime(newest)
         datestring = datestring.rjust(self.pretty_datetime_len)
         self.date_w = urwid.AttrMap(urwid.Text(datestring),
                                     self._get_theme('date'))
@@ -155,7 +150,8 @@ class ThreadlineWidget(urwid.AttrMap):
                 msgs = self.thread.get_messages().keys()
             else:
                 msgs = []
-            msgs.sort()
+            # sort the most recent messages first
+            msgs.sort(key=lambda msg: msg.get_date(), reverse=True)
             lastcontent = ' '.join([m.get_text_content() for m in msgs])
             contentstring = lastcontent.replace('\n', ' ').strip()
             self.content_w = urwid.AttrMap(urwid.Text(
@@ -349,6 +345,10 @@ class CompleteEdit(urwid.Edit):
             self.on_exit(self.edit_text)
         elif key == 'cancel':
             self.on_exit(None)
+        elif key == 'ctrl a':
+            self.set_edit_pos(0)
+        elif key == 'ctrl e':
+            self.set_edit_pos(len(self.edit_text))
         else:
             result = urwid.Edit.keypress(self, size, key)
             self.completions = None
@@ -472,11 +472,18 @@ class MessageWidget(urwid.WidgetWrap):
         lines = []
         for key in self._displayed_headers:
             if key in mail:
-                for value in mail.get_all(key):
-                    dvalue = decode_header(value, normalize=norm)
-                    lines.append((key, dvalue))
+                if key.lower() in ['cc','bcc', 'to']:
+                    values = mail.get_all(key)
+                    dvalues = [decode_header(v, normalize=norm) for v in values]
+                    lines.append((key, ', '.join(dvalues)))
+                else:
+                    for value in mail.get_all(key):
+                        dvalue = decode_header(value, normalize=norm)
+                        lines.append((key, dvalue))
 
-        cols = [HeadersList(lines)]
+        key_att = settings.get_theming_attribute('thread', 'header_key')
+        value_att = settings.get_theming_attribute('thread', 'header_value')
+        cols = [HeadersList(lines, key_att, value_att)]
         bc = list()
         if self.depth:
             cols.insert(0, self._get_spacer(self.bars_at[1:]))
@@ -619,16 +626,11 @@ class MessageSummaryWidget(urwid.WidgetWrap):
 
 
 class HeadersList(urwid.WidgetWrap):
-    """
-    renders a pile of header values as key/value list
-
-    Theme settings:
-        * `thread_header`
-        * `thread_header_key`
-        * `thread_header_value`
-    """
-    def __init__(self, headerslist):
+    """ renders a pile of header values as key/value list """
+    def __init__(self, headerslist, key_attr, value_attr):
         self.headers = headerslist
+        self.key_attr = key_attr
+        self.value_attr = value_attr
         pile = urwid.Pile(self._build_lines(headerslist))
         att = settings.get_theming_attribute('thread', 'header')
         pile = urwid.AttrMap(pile, att)
@@ -640,8 +642,6 @@ class HeadersList(urwid.WidgetWrap):
     def _build_lines(self, lines):
         max_key_len = 1
         headerlines = []
-        key_att = settings.get_theming_attribute('thread', 'header_key')
-        value_att = settings.get_theming_attribute('thread', 'header_value')
         #calc max length of key-string
         for key, value in lines:
             if len(key) > max_key_len:
@@ -649,8 +649,8 @@ class HeadersList(urwid.WidgetWrap):
         for key, value in lines:
             ##todo : even/odd
             keyw = ('fixed', max_key_len + 1,
-                    urwid.Text((key_att, key)))
-            valuew = urwid.Text((value_att, value))
+                    urwid.Text((self.key_attr, key)))
+            valuew = urwid.Text((self.value_attr, value))
             line = urwid.Columns([keyw, valuew])
             headerlines.append(line)
         return headerlines
